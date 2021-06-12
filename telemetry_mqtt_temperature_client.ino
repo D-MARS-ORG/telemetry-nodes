@@ -16,7 +16,7 @@
 #define NODE_ID "<unique ver4 uuid>"
 #define DATA_TYPE "<data type>"
 #define MEASUREMENT_UNIT "<measurement unit>"
-
+#define MAX_CONNECTION_RETRIES 5
 
 #define SENSOR 32 // SENSOR was changed from 12 to 32 = touch button 1 on mahavision
 #define io2 33 //led output
@@ -34,6 +34,8 @@ char str_sensor[10];
 WiFiClient ubidots;
 PubSubClient client(ubidots);
 
+void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
+
 void callback(char* topic, byte* payload, unsigned int length) {
   char p[length + 1];
   memcpy(p, payload, length);
@@ -44,6 +46,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void reconnect() {
+  int connect_retries = 0;
   // Loop until we're reconnected
   while (!client.connected()) {
     Serial.println("Attempting MQTT connection...");
@@ -52,6 +55,10 @@ void reconnect() {
     if (client.connect(MQTT_CLIENT_NAME, TOKEN, "")) {
       Serial.println("Connected");
     } else {
+      connect_retries++;
+      if(connect_retries == MAX_CONNECTION_RETRIES) {
+        resetFunc(); //call reset
+      }
       Serial.print("Failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 2 seconds");
@@ -85,7 +92,7 @@ void setup() {
   Serial.println("WiFi Connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  IPAddress my_broker(10, 0, 0, 19);
+  IPAddress my_broker(10, 0, 0, 70);
   client.setServer(my_broker, 9999);
   
   
@@ -116,9 +123,7 @@ void loop() {
   // "measurement_unit": "Celsius",
   // "value": 20.2
   // }
-  sprintf(payload, "{\"location\": \"%s\", \"node_id\": \"%s\", 
-                    \"data_type\": \"%s\", \"measurement_unit\": \"%s\", 
-                    \"value\": %s}",
+  sprintf(payload, "{\"location\":\"%s\",\"node_id\":\"%s\",\"data_type\":\"%s\",\"measurement_unit\":\"%s\",\"value\": %s}",
                     LOCATION,NODE_ID,DATA_TYPE,MEASUREMENT_UNIT,str_sensor);
   Serial.println("Publishing data to D-MARS Telemetry base station. Topic:");
   Serial.println(topic);
@@ -126,4 +131,5 @@ void loop() {
   client.publish(topic, payload);
   client.loop();
   digitalWrite(io2, LOW);    // turn the LED off by making the voltage LOW
-  delay(3000
+  delay(100000); // 600,000 = 10minutes
+}
